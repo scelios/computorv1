@@ -1,7 +1,4 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <sstream>
+#include "computorv1.hpp"
 
 std::vector<std::string> split(const std::string &s, char delimiter) {
     std::vector<std::string> tokens;
@@ -13,201 +10,170 @@ std::vector<std::string> split(const std::string &s, char delimiter) {
     return tokens;
 }
 
-int PowerOfX(std::string equation)
-{
-	if (equation.find("X^2") != std::string::npos)
-		return 2;
-	else if (equation.find("X^1") != std::string::npos)
-		return 1;
-	else if (equation.find("X^0") != std::string::npos)
-		return 0;
-	else if (equation.find("X") != std::string::npos)
-		return 1;
-	else
-		return -1;
-}
-
 bool isValidEquation(std::string equation)
 {
-	std::string validChars = "0123456789X^+-*/= ";
+	std::string validChars = "0123456789.X^+-*/=() ";
 	for (int i = 0; i < equation.size(); i++)
 	{
 		if (validChars.find(equation[i]) == std::string::npos)
 			return false;	
 	}
-	std::vector<std::string> terms = split(equation,'=');
-	if (terms.size() != 2)
-		return false;
+	//! std::vector<std::string> terms = split(equation,'=');
+	// if (terms.size() != 2)
+	// 	return false;
 	return true;
 }
 
-bool isValidTerm(std::string equation)
+void getDigit( std::string equation, int *i, double *digit, Possibilities parse)
 {
-	std::string validOperators = "+-*/=";
-	bool usedOperator = false;
-	bool usedNumber = false;
-	bool usedX = false;
-	bool usedPower = false;
-	for (int i = 0; i < equation.size(); i++)
+	std::string temp = "";
+	bool usedDot = false;
+	while (isdigit(equation[*i]) || equation[*i] == '.')
 	{
-		if (validOperators.find(equation[i]) != std::string::npos)
+		temp += equation[*i];
+		(*i)++;
+		if (equation[*i] == '.' && usedDot)
 		{
-			if (usedOperator || usedNumber|| usedX)
-				return false;
-			usedOperator = true;
+			std::cerr << "Invalid number" << std::endl;
+			exit(1);
 		}
-		else if (isdigit(equation[i]))
-		{
-			usedNumber = true;
-		}
-		else if (equation[i] == 'X')
-		{
-			if (usedX)
-				return false;
-			usedX = true;
-		}
-		else if (equation[i] == '^')
-		{
-			if (usedPower)
-				return false;
-			usedPower = true;
-		}
+		if (equation[*i] == '.')
+			usedDot = true;
 	}
-	return true;
+	(*i)--; // to compensate for the incrementation in the while loop
+	*digit = std::stod(temp);
+	if (parse.isNegative)
+		*digit *= -1;
+	if (parse.isRightSide)
+		*digit *= -1;
+	// std::cout << "temp: " << *digit << std::endl;
+}
+
+void sendValue(Delta *save, Delta *temp, double *change)
+{
+	if (change != 0)
+	{
+		save->c.value += *change;
+		*change = 0;
+	}
+	save->a.value += temp->a.value;
+	save->b.value += temp->b.value;
+	save->c.value += temp->c.value;
+	std::cout << "save: " << save->a.value << " " << save->b.value << " " << save->c.value << std::endl;
+	// std::cout << "temp: " << temp->a.value << " " << temp->b.value << " " << temp->c.value << std::endl;
+	
+	temp->a.value = 0;
+	temp->b.value = 0;
+	temp->c.value = 0;
+}
+
+void putToRightPower(Delta *temp, double *change, Possibilities parse, std::string equation, int *i)
+{
+	//5 * X^2,x^2 * 5, 5 * x, 5 * x^0, 5 * x^1
+	if (parse.isMult && parse.isX)
+	{
+		if (equation[*i + 1] == '^')
+		{
+			(*i)++;
+			double power = 0;
+			getDigit(equation, i, &power, parse);
+			if (power == 0)
+				temp->c.value += *change;
+			else if (power == 1)
+				temp->b.value += *change;
+			else if (power == 2)
+				temp->a.value += *change;
+			else
+			{
+				std::cerr << "Invalid power" << std::endl;
+				exit(1);
+			}
+		}
+		else
+			temp->b.value += *change;
+	}
+	change = 0;
 }
 
 int main(int argc, char **argv)
 {
-	if (argc != 2)
-	{
-		std::cerr << "Usage: " << argv[0] << " <equation>" << std::endl;
-		return 1;
-	}
-	// -x^2*-456+2*x^1-x+86=0
+	Delta temp, value;
+	Possibilities parse;
 	std::string equation = argv[1];
-	float a = 0, b = 0, c = 0, temp = 0;
-	int power = 0;
-	bool isEquals = false, isMultiply = false, isDivide = false, isAdd = false, isSubstract = false;
-	std::vector<std::string> terms = split(equation,' ');
-	if (!isValidEquation(equation))
+	double change = 0;
+
+	if (argc != 2 || !isValidEquation(equation))
 	{
-		std::cerr << "Invalid equation" << std::endl;
+		if (argc != 2)
+			std::cerr << "Usage: " << argv[0] << " <equation>" << std::endl;
+		else
+			std::cerr << "Invalid equation" << std::endl;
 		return 1;
 	}
-	
-	for (std::string term : terms)
+	int i = -1;
+	while(++i < equation.size())
 	{
-		if (!isValidTerm(term))
+		if (isdigit(equation[i])|| equation[i] == '.')
 		{
-			std::cerr << "Invalid term" << std::endl;
-			return 1;
+			getDigit(equation, &i, &change,parse);
+			putToRightPower(&temp, &change, parse, equation, &i);
+			std::cout << "equation: " << temp.a.value << " "<< equation.substr(i, std::string::npos) << std::endl;
 		}
-		if (term.find("X") != std::string::npos)
-		{
-			power = PowerOfX(term);
-			if (power == -1)
-			{
-				std::cerr << "Invalid term" << std::endl;
-				return 1;
-			}
-			std::cout << "Power: " << power << "temp: "<< temp << std::endl;
-			if (temp != 0)
-			{
-				switch (power)
-				{
-				case 0:
-					c += temp;
-					break;
-				case 1:
-					b += temp;
-					break;
-				case 2:
-					a += temp;
-					break;
-				default:
-					break;
-				}
-			}
-		}
-		else if (term.find("=") != std::string::npos)
-		{
-			isEquals = true;
-			isAdd = false;
-			isSubstract = false;
-			isMultiply = false;
-			isDivide = false;
-		}
-		else if (term.find("+") != std::string::npos)
-		{
-			isAdd = true;
-			isSubstract = false;
-			isMultiply = false;
-			isDivide = false;
-		}
-		else if (term.find("-") != std::string::npos)
-		{
-			isSubstract = true;
-			isAdd = false;
-			isMultiply = false;
-			isDivide = false;
-		}
-		else if (term.find("*") != std::string::npos)
-		{
-			isMultiply = true;
-			isDivide = false;
-			isAdd = false;
-			isSubstract = false;
-		}
-		else if (term.find("/") != std::string::npos)
-		{
-			isDivide = true;
-			isMultiply = false;
-			isAdd = false;
-			isSubstract = false;
-		}
-
-
 		else
 		{
-			std::cout << "term: " << term << std::endl;
-			temp =std::stof(term);
-			// std::cout << "temp: " << temp << std::endl;
-			if (isEquals)
-				temp *= -1;
-			if (isSubstract)
+			std::cout << "switch: " << equation[i] << std::endl;
+			switch (equation[i])
 			{
-				c -= temp;
-			}
-			else if (isAdd)
-			{
-				c += temp;
+			case '+':
+				parse.isNegative = false;
+				if (!parse.isParenthesis)
+					sendValue(&value, &temp,&change);
+				break;
+			case '-':
+				parse.isNegative = true;
+				if (!parse.isParenthesis)
+					sendValue(&value, &temp,&change);
+				break;
+			case '=':
+				parse.isRightSide = true;
+				break;
+			case '*':
+				parse.isMult = true;
+				parse.isDiv = false;
+				break;
+			case '/':
+				parse.isDiv = true;
+				parse.isMult = false;
+				break;
+			case '(':
+				parse.isParenthesis = true;
+				break;
+			case ')':
+				parse.isParenthesis = false;
+				break;
+			case 'X':
+				parse.isX = true;
+				// putToRightPower(&temp, &change, parse, equation, &i);
+				break;
+			case '^':
+				parse.isPower = true;
+				break;
+			case ' ':
+				break;
+			default:
+				break;
 			}
 		}
-
 	}
-	/*if (temp != 0)
-	{
-		switch (power)
-		{
-		case 0:
-			c += temp;
-			break;
-		case 1:
-			b += temp;
-			break;
-		case 2:
-			a += temp;
-			break;
-		default:
-			break;
-		}
-	}*/
+	sendValue(&value, &temp,&change);
+	putToRightPower(&temp, &change, parse, equation, &i);
 
-	std::cout << "a:" << a << " b:" << b << " c:" << c << std::endl;
-	// ax^2 + bx + c = 0
 
-	// Split equation into terms
-	
+
+
+	std::cout << "a: " << value.a.value << " b: " << value.b.value << " c: " << value.c.value << std::endl;
 
 	return 0;
 }
+
+
