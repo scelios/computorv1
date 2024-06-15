@@ -181,6 +181,7 @@ int main(int argc, char **argv)
 			case '+':
 				parse.isAdd = true;
 				parse.isNegative = false;
+
 				if (!parse.isParenthesis)
 					sendValue(&value, &temp,&change);
 				break;
@@ -214,6 +215,8 @@ int main(int argc, char **argv)
 			case 'X':
 				parse.isX = true;
 				parse.isAdd = false;
+				parse.isMult = false;
+				parse.isDiv = false;
 
 				// std::cout << "value: " << value.a.value << " " << value.b.value << " " << value.c.value << std::endl;
 				putToRightPower(&temp, &change, &parse, equation, &i);
