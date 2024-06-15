@@ -18,6 +18,7 @@ struct Delta {
 };
 
 struct Possibilities{
+	bool isAdd=true;
 	bool isNegative=false;
 	bool isRightSide=false;
 	bool isParenthesis=false;
